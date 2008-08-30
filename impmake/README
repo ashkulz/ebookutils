@@ -1,0 +1,41 @@
+This is impmake, a utility for creating ebooks for the 1100/1150/1200
+from HTML source files. It requires the installation of eBook Publisher from 
+
+     http://ebooktechnologies.com/support_publisher_download.htm
+
+In case this is not installed, you may get an error:
+
+    Execution failed at src/impmake.c:159 while attempting to execute
+      dhCreateObject(L"SBPublisher.Project", NULL, &impProject)
+
+To compile the code, you will need MinGW with MSys from http://mingw.org
+Just switch to the directory where you extracted the files, and type
+"make" from Msys command prompt.
+
+Usage: impmake [-OPTIONS] FILES [...]
+
+-v             Show the version.
+-h, --help     Show this help message.
+-l, --log      Specify that an error log should be generated.
+-s, --save     Specify the project to save as.
+-a, --author   Specify the book's author.
+-t, --title    Specify the book's title.
+-c, --category Specify the book's category.
+-d, --out-dir  Specify the output directory.
+-n, --name     Specify the book name.
+--isbn         Specify the book's ISBN
+--pubdate      Specify the book's publishing date
+--publisher    Specify the book's publisher
+--language     Specify the language for the book.
+
+--1100, --1150, --1200, --oeb
+               Specify the target device to use for book creation.
+
+--zoom-small, --zoom-large, --zoom-both
+               Specify the zoom states to be supported in the book
+
+--no-underline Specify that links should not be underlined.
+--no-img-conv  Specify that image auto conversion to JPG should be disabled.
+--no-img-scale Specify that image pre scaling should be disabled.
+--compress     Specify that the compression is to be used.
+--keep-anchors Specify that link anchors should be kept in output.

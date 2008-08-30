@@ -2,3 +2,9 @@
 *~
 *.o
 *.exe
+*.pyc
+impmake/src/version.h
+impserve/version.py
+impserve/build
+impserve/dist
+impserve/MANIFEST
