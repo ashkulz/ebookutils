@@ -27,6 +27,7 @@ LOCAL_MESSAGE   = """
 </body></html>""" % (__version__, BOOKLIST_PREFIX, CONTENT_PREFIX)
 
 INDEX_FILES     = ['index.htm', 'index.html']
+CONTENT_FILE    = re.compile('filename="?([^"]+)"?')
 
 ############################################################## ebook metadata
 
@@ -117,7 +118,6 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     root_dir       = get_root()
     shelf_dirs     = [ root_dir ]
     book_cache     = {}
-    proxies        = urllib.getproxies()
 
     ############################################################ HTTP handler
 
@@ -167,6 +167,10 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_error(504, "Gateway Timeout")
             return
         self.send_response(code, msg)
+        if 'Content-Disposition' in info:
+            m = CONTENT_FILE.search(info['Content-Disposition'])
+            if m:
+                info['Content-Type'] = self.guess_type(m.group(1))
         for name in info:
             self.send_header(name, info.getheader(name))
         self.end_headers()
@@ -217,9 +221,8 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             elif not isfile(loc):
                     self.send_error(404, "File not found")
                     return
-            type = mimetypes.guess_type(loc)[0] or 'application/octet-stream'
             self.send_response(200)
-            self.send_header("Content-Type", type)
+            self.send_header("Content-Type", self.guess_type(loc))
             self.send_header("Content-Length", getsize(loc))
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
@@ -245,6 +248,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                       (i[3], i[5], i[6], i[4], i[1], BOOK_PREFIX+i[3])
         result += "\r\n\r\n"
         return result
+        
+    def guess_type(self, fname):
+        return mimetypes.guess_type(fname)[0] or 'application/octet-stream'
 
     def reload_cache(self):
         for dir in self.shelf_dirs:
