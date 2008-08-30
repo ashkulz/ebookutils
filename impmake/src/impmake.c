@@ -17,7 +17,7 @@
                       char szMessage[512]; \
                       dhFormatExceptionA(NULL, szMessage, sizeof(szMessage)/sizeof(szMessage[0]), TRUE); \
                       printf("\nExecution failed at %s:%d while attempting to execute\n  %s\n\n%s\n", \
-                      __FILE__, __LINE__, #func, szMessage); result = 1; goto cleanup; }
+                      __FILE__, __LINE__, #func, szMessage); result = 2; goto cleanup; }
 
 #define STRTRIM(str)   { int n = strlen(str); \
                          while(n > 0 && isspace(str[--n])) str[n] = 0; }
@@ -102,7 +102,7 @@ Usage: impmake [-OPTIONS] FILES [...]\n\n\
 void load_options(int argc, char ** argv)
 {
     time_t current;
-    int c, index = 0;
+    int c, index = 0, error = 0;
 
     /* set default option values */
     current = time(NULL);
@@ -119,7 +119,7 @@ void load_options(int argc, char ** argv)
     {
         c = getopt_long(argc, argv, "hvls:a:t:c:d:n:",
                         long_options, &index);
-        if (c == -1)
+        if (c == EOF)
             break;
 
         switch(c)
@@ -137,9 +137,14 @@ void load_options(int argc, char ** argv)
             case 'e':  SET_OPT(language);  break;
             case 'l':  error_log = 1;      break;
             case 'v':  printf("impmake %s\n", VERSION); exit(0);
-            default:   help      = 1;      break;
+            default:   error     = 1;      break;
+       }
+    }
 
-        }
+    if(error)
+    {
+        fprintf(stderr, "\nType %s --help for usage.\n", argv[0]);
+        exit(1);
     }
 
     if(help)
