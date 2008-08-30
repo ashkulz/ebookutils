@@ -9,7 +9,7 @@
 from version import __version__
 
 import os, sys, signal, socket, select, urlparse, urllib, shutil, getopt
-import SocketServer, BaseHTTPServer, mimetypes, cgi
+import SocketServer, BaseHTTPServer, mimetypes, cgi, re
 
 from   os.path import *
 
@@ -95,12 +95,16 @@ def get_root():
         return dirname(abspath(sys.argv[0]))
     return abspath(os.getcwd())
 
+class HttpError(Exception):
+    def __init__(self, code, msg, data, info):
+        self.code, self.msg, self.data, self.info = \
+            code, msg, data, info
+
 class ImpURLopener(urllib.URLopener):
     version = 'impserve/' + __version__
     
     def http_error_default(self, url, fp, errcode, errmsg, headers):
-        """Default error handling -- don't raise an exception."""
-        return addinfourl(fp, headers, "http:" + url)
+        raise HttpError(errcode, errmsg, fp.read(), headers)
 
 urllib._urlopener = ImpURLopener()
 
@@ -113,6 +117,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     root_dir       = get_root()
     shelf_dirs     = [ root_dir ]
     book_cache     = {}
+    proxies        = urllib.getproxies()
 
     ############################################################ HTTP handler
 
@@ -131,20 +136,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         self.handle_proxy_request()
 
-    def do_POST(self):
-        """Serve a POST request."""
-
-        (proto, host, path, param, qry, frag) = urlparse.urlparse(self.path)
-        if proto != 'http' or not host:
-            self.send_error(400, 'bad url %s' % self.path)
-            return
-
-        self.handle_proxy_request()
+    do_POST = do_GET
 
     ############################################################## HTTP proxy
-
-    ## This part is taken from HTTP Debugging Proxy by Xavier Defrang
-    ## which in turn was based on TinyHTTPProxy by UZUKI Hisao.
 
     def handle_proxy_request(self):
         (proto, host, path, param, qry, frag) = urlparse.urlparse(self.path)
@@ -153,69 +147,30 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         ### via the inbuilt browser. Need to investigate it further.
 
         qry = qry.replace('&amp;', '&')
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            try:
-                i = host.find(':')
-                if i >= 0:
-                    host, port = host[:i], int(host[i+1:])
-                else:
-                    port = 80
-                sock.settimeout(10)
-                sock.connect((host, port))
-            except socket.timeout:
-                self.send_error(504, "Proxy has timed out")
-                return
-            self.log_request()
-            str = '%s %s %s\r\n' % (
-                self.command,
-                urlparse.urlunparse(('', '', path, param, qry, frag)),
-                self.request_version)
-            sock.send(str)
-            self.headers['Connection'] = 'close'
-            del self.headers['Proxy-Connection']
-            for (h, v) in self.headers.items():
-                str = '%s: %s\r\n' % (h, v)
-                sock.send(str)
-            sock.send('\r\n')
-            self.proxy_sendrecv(sock)
-        finally:
-            sock.close()
-            self.connection.close()
+        path = urlparse.urlunparse((proto, host, path, param, qry, frag))
 
-    def proxy_sendrecv(self, sock, max_idling=20):
-        rfile = self.rfile
-        if hasattr(rfile, '_rbuf'):	 # on BeOS?
-            data = rfile._rbuf
-        else:
-            if self.headers.has_key('Content-Length'):
-                n = int(self.headers['Content-Length'])
-                data = rfile.read(n)
+        try:
+            data = None
+            if 'Content-Length' in self.headers:
+                data = self.rfile.read(int(self.headers['Content-Length']))
             else:
                 self.connection.setblocking(0)
-                try: data = rfile.read()
-                except IOError: data = ''
+                try: data = self.rfile.read()
+                except: pass
                 self.connection.setblocking(1)
-        rfile.close()
-        if data:
-            sock.send(data)
-        iw = [self.connection, sock]
-        count = 0
-        while 1:
-            count += 1
-            (ins, _, exs) = select.select(iw, [], iw, 3)
-            if exs: break
-            if ins:
-                for i in ins:
-                    if i is sock:
-                        out = self.connection
-                    else:
-                        out = sock
-                    data = i.recv(8192)
-                    if data:
-                        out.send(data)
-                        count = 0
-            if count == max_idling: break
+
+            f = urllib.urlopen(path, data=data)
+            code, msg, data, info = 200, 'OK', f.read(), f.info()
+        except HttpError, e:
+            code, msg, data, info = e.code, e.msg, e.data, e.info
+        except:
+            self.send_error(504, "Gateway Timeout")
+            return
+        self.send_response(code, msg)
+        for name in info:
+            self.send_header(name, info.getheader(name))
+        self.end_headers()
+        self.wfile.write(data)
 
     ########################################################### local content
 
@@ -231,7 +186,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             data = self.get_booklist(index, length)
             self.send_response(200)
             self.send_header("Content-Length", len(data))
-            self.send_header("Content-type", 'text/x-booklist')
+            self.send_header("Content-Type", 'text/x-booklist')
             self.end_headers()
             self.wfile.write(data)
         elif self.path.startswith(BOOK_PREFIX):
@@ -242,7 +197,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                     data = open(info[0], 'rb')
                     self.send_response(200)
                     self.send_header("Content-Length", info[1])
-                    self.send_header("Content-type", 'application/x-softbook')
+                    self.send_header("Content-Type", 'application/x-softbook')
                     self.end_headers()
                     shutil.copyfileobj(data, self.wfile)
                     data.close()
@@ -264,14 +219,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                     return
             type = mimetypes.guess_type(loc)[0] or 'application/octet-stream'
             self.send_response(200)
-            self.send_header("Content-type", type)
+            self.send_header("Content-Type", type)
             self.send_header("Content-Length", getsize(loc))
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
         else:
             self.send_response(200)
-            self.send_header("Content-Length", len(LOCAL_MESSAGE ))
-            self.send_header("Content-type", 'text/html')
+            self.send_header("Content-Length", len(LOCAL_MESSAGE))
+            self.send_header("Content-Type", 'text/html')
             self.end_headers()
             self.wfile.write(LOCAL_MESSAGE)
 
@@ -296,7 +251,6 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.book_cache = get_ebook_list(dir, self.book_cache)
             
     def address_string(self):
-        print self.client_address
         return self.client_address[0]
 
 class ThreadingHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
