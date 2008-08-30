@@ -9,7 +9,7 @@
 from version import __version__
 
 import os, sys, signal, socket, select, urlparse, urllib, shutil, getopt
-import SocketServer, BaseHTTPServer, mimetypes
+import SocketServer, BaseHTTPServer, mimetypes, cgi
 
 from   os.path import *
 
@@ -221,8 +221,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def handle_local_request(self, host, path, qry):
         if self.path.startswith(BOOKLIST_PREFIX):
+            params = cgi.parse_qs(qry)
+            index, length = 0, 100
+            if 'INDEX' in params:
+                index = int(params['INDEX'][0])-1
+            if 'REQUEST' in params:
+                length = int(params['REQUEST'][0])-1
             self.reload_cache()
-            data = self.get_booklist()
+            data = self.get_booklist(index, length)
             self.send_response(200)
             self.send_header("Content-Length", len(data))
             self.send_header("Content-type", 'text/x-booklist')
