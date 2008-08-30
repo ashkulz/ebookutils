@@ -1,0 +1,4 @@
+# ignored objects
+*~
+*.o
+*.exe
