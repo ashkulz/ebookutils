@@ -8,8 +8,8 @@
 
 from version import __version__
 
-import os, sys, signal, socket, select, urlparse, urllib, shutil, getopt
-import SocketServer, BaseHTTPServer, mimetypes, cgi, re
+import os, sys, re, imp, signal, socket, select, urlparse, urllib, shutil
+import SocketServer, BaseHTTPServer, mimetypes, cgi
 
 from   os.path import *
 
@@ -91,7 +91,7 @@ def get_root():
             isdir(join(os.environ.get("APPDATA", ""), "impserve")):
         return abspath(expanduser("~/.impserve"))
     if '__file__' in globals():
-        return dirname(abspath(__file__))
+        return abspath(join(dirname(__file__), ".."))
     if sys.argv[0]:
         return dirname(abspath(sys.argv[0]))
     return abspath(os.getcwd())
@@ -103,11 +103,65 @@ class HttpError(Exception):
 
 class ImpURLopener(urllib.URLopener):
     version = 'impserve/' + __version__
-    
+
     def http_error_default(self, url, fp, errcode, errmsg, headers):
         raise HttpError(errcode, errmsg, fp.read(), headers)
 
 urllib._urlopener = ImpURLopener()
+
+############################################################ plugin framework
+
+class Plugin(type):
+    def __init__(cls, name, bases, attrs):
+        if not hasattr(cls, 'plugins'):
+            # This branch only executes when processing the mount point itself.
+            # So, since this is a new plugin type, not an implementation, this
+            # class shouldn't be registered as a plugin. Instead, it sets up a
+            # list where plugins can be registered later.
+            cls.plugins = []
+        else:
+            # This must be a plugin implementation, which should be registered.
+            # Simply appending it to the list is all that's needed to keep
+            # track of it later.
+            cls.plugins.append(cls)
+
+    @staticmethod
+    def load_from(dir):
+        loaded, failed = [], []
+        if not os.path.isdir(dir) or dir in sys.path:
+            return [], []
+        sys.path.append(dir)
+        files = [f for f in os.listdir(dir) if f.lower().endswith('.py')]
+        files.sort()
+        for f in files:
+            try:
+                imp.load_source(os.path.splitext(f)[0], os.path.join(dir, f))
+                loaded.append(f)
+            except:
+                raise
+                failed.append(f)
+        return loaded, failed
+
+############################################################ extension points
+
+class ProxyClient:
+    """
+    Plugins should implement a get_url() method returning the modified URL eg.
+
+    def get_url(self, url):
+        return url
+    """
+    __metaclass__ = Plugin
+
+class ProxyResponse:
+    """
+    Plugins should implement a get_response() method, which accepts and returns
+    the headers and the content. This will be only called if request is OK.
+
+    def get_response(self, headers, content):
+        return headers, content
+    """
+    __metaclass__ = Plugin
 
 ###################################################################### server
 
@@ -141,13 +195,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     ############################################################## HTTP proxy
 
     def handle_proxy_request(self):
-        (proto, host, path, param, qry, frag) = urlparse.urlparse(self.path)
-
-        ### FIXME: this is a hack, otherwise query parameters don't work
-        ### via the inbuilt browser. Need to investigate it further.
-
-        qry = qry.replace('&amp;', '&')
-        path = urlparse.urlunparse((proto, host, path, param, qry, frag))
+        url = self.path
+        for plugin in ProxyClient.plugins:
+            url = plugin().get_url(url)
 
         try:
             data = None
@@ -159,8 +209,11 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 except: pass
                 self.connection.setblocking(1)
 
-            f = urllib.urlopen(path, data=data)
+            f = urllib.urlopen(url, data=data)
             code, msg, data, info = 200, 'OK', f.read(), f.info()
+
+            for plugin in ProxyResponse.plugins:
+                info, data = plugin().get_response(info, data)
         except HttpError, e:
             code, msg, data, info = e.code, e.msg, e.data, e.info
         except:
@@ -248,14 +301,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                       (i[3], i[5], i[6], i[4], i[1], BOOK_PREFIX+i[3])
         result += "\r\n\r\n"
         return result
-        
+
     def guess_type(self, fname):
         return mimetypes.guess_type(fname)[0] or 'application/octet-stream'
 
     def reload_cache(self):
         for dir in self.shelf_dirs:
             self.book_cache = get_ebook_list(dir, self.book_cache)
-            
+
     def address_string(self):
         return self.client_address[0]
 
@@ -268,6 +321,9 @@ def run(host, port, dirs=[]):
     if not mimetypes.inited:
         mimetypes.init(join(ImpProxyHandler.root_dir, 'mime.types'))
     mimetypes.add_type('application/x-softbook', '.imp')
+    l, f = Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
+    for plugin in l:
+        print "Loaded plugin: " + plugin
 
     for dir in dirs:
         if isdir(dir):
@@ -280,43 +336,3 @@ def run(host, port, dirs=[]):
             (__version__, sname[0], sname[1])
 
     httpd.serve_forever()
-
-def usage():
-    print """
-Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
--h          show this help message.
--v          show the version.
--a ADDRESS  listen on the specified IP address (default: 0.0.0.0)
--p PORT     listen on the specified port       (default: 9090)
-"""
-
-
-def main(argv):
-    host, port = '', 9090
-    try:
-        opts, args = getopt.getopt(argv, "hva:p:")
-    except getopt.GetoptError, err:
-        print str(err)
-        usage()
-        sys.exit(2)
-    for o, a in opts:
-        if o == '-h':
-            usage()
-            sys.exit(0)
-        elif o == '-v':
-            print 'impserve %s' % __version__
-            sys.exit(0)
-        elif o == '-a':
-            host = a
-        elif o == '-p':
-            port = int(a)
-        else:
-            print 'Unhandled option'
-            sys.exit(3)
-
-    run(host, port, args)
-    sys.exit(0)
-
-if __name__ == '__main__':
-    main(sys.argv[1:])
-

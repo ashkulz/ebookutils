@@ -6,5 +6,5 @@ version = open('VERSION').read().strip()
 with open('impmake/src/version.h', 'w') as f:
     f.write('#define VERSION "%s"\n' % version)
 
-with open('impserve/version.py', 'w') as f:
+with open('impserve/impserve/version.py', 'w') as f:
     f.write('__version__ = "%s"\n' % version)
