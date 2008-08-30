@@ -8,6 +8,7 @@
 #include "disphelper.h"
 #include <stdio.h>
 #include <ctype.h>
+#include <unistd.h>
 #include <wchar.h>
 #include <tchar.h>
 #include <time.h>
@@ -24,12 +25,13 @@
 #define SET_OPT(target) { strncpy(target, optarg, (sizeof(target)/sizeof(char))-1);\
                           target[(sizeof(target)/sizeof(char))-1] = 0; STRTRIM(target) }
 #define TO_BOOL(i) ( (i == 0) ? FALSE : TRUE )
+#define ABSPATH(p) _fullpath(pathspec, (p), sizeof(pathspec)/sizeof(char))
 
 /* ============================================================================ */
 
 static char author[256],  title   [256],  category [256], name    [256];
 static char isbn  [256],  pubdate [256],  publisher[256], language[256];
-static char outdir[1024], prj_save[1024], pathspec[1024];
+static char outdir[1024], prj_save[1024], pathspec[1024], from   [1024];
 
 static int device    = 0, zoom       = 2, help        = 0;
 static int underline = 1, image_conv = 1, image_scale = 1;
@@ -63,6 +65,7 @@ static struct option long_options[] = {
     {"pubdate",   required_argument, 0, 'u' },
     {"publisher", required_argument, 0, 'p' },
     {"language",  required_argument, 0, 'e' },
+    {"from",      required_argument, 0, 'f' },
 
     /* end of options */
     {0, 0, 0, 0}
@@ -75,20 +78,21 @@ void usage()
     printf("\n\
 Usage: impmake [-OPTIONS] FILES [...]\n\n\
 -v             Show the version.\n\
--h, --help     Show this help message.\n\
--l, --log      Specify that an error log should be generated.\n\
--s, --save     Specify the project to save as.\n\
+-h, --help     Show this help message.\n\n\
+--1100, --1150, --1200, --oeb\n\
+               Specify the target device to use for book creation.\n\
+-f, --from     Specify a file containing list of HTML files.\n\
+-d, --out-dir  Specify the output directory.\n\
+-n, --name     Specify the book name.\n\
 -a, --author   Specify the book's author.\n\
 -t, --title    Specify the book's title.\n\
 -c, --category Specify the book's category.\n\
--d, --out-dir  Specify the output directory.\n\
--n, --name     Specify the book name.\n\
+-l, --log      Specify that an error log should be generated.\n\
+-s, --save     Specify the project to save as.\n\
 --isbn         Specify the book's ISBN\n\
 --pubdate      Specify the book's publishing date\n\
 --publisher    Specify the book's publisher\n\
---language     Specify the language for the book.\n\n\
---1100, --1150, --1200, --oeb\n\
-               Specify the target device to use for book creation.\n\n\
+--language     Specify the language for the book.\n\
 --zoom-small, --zoom-large, --zoom-both\n\
                Specify the zoom states to be supported in the book\n\n\
 --no-underline Specify that links should not be underlined.\n\
@@ -112,12 +116,12 @@ void load_options(int argc, char ** argv)
     strcpy(name,     "ebook");
     strcpy(outdir,   ".");
     strcpy(isbn,     "");  strcpy(pubdate,  "");  strcpy(publisher, "");
-    strcpy(language, "");  strcpy(prj_save, "");
+    strcpy(language, "");  strcpy(prj_save, "");  strcpy(from,      "");
 
     /* parse options */
     while(1)
     {
-        c = getopt_long(argc, argv, "hvls:a:t:c:d:n:",
+        c = getopt_long(argc, argv, "hvls:a:t:c:d:n:f:",
                         long_options, &index);
         if (c == EOF)
             break;
@@ -135,6 +139,7 @@ void load_options(int argc, char ** argv)
             case 'u':  SET_OPT(pubdate);   break;
             case 'p':  SET_OPT(publisher); break;
             case 'e':  SET_OPT(language);  break;
+            case 'f':  SET_OPT(from);      break;
             case 'l':  error_log = 1;      break;
             case 'v':  printf("impmake %s\n", VERSION); exit(0);
             default:   error     = 1;      break;
@@ -150,13 +155,18 @@ void load_options(int argc, char ** argv)
     if(help)
         usage();
 
-    if( _fullpath(pathspec, outdir, sizeof(pathspec)/sizeof(char)) )
+    if(from[0] && ABSPATH(from))
+        strcpy(from, pathspec);
+
+    if(ABSPATH(outdir))
         strcpy(outdir, pathspec);
 }
 
 int build_imp(int argc, char **argv)
 {
-    int result = 0;
+    int result = 0, count = 0;
+    FILE *from_list;
+    char src_file[1024];
 
     DISPATCH_OBJ(impProject);
     DISPATCH_OBJ(impBuilder);
@@ -165,12 +175,35 @@ int build_imp(int argc, char **argv)
     COM_TRY( dhCreateObject(L"SBPublisher.Builder", NULL, &impBuilder) );
 
     COM_TRY( dhCallMethod(impProject, L".ClearAll()") );
+
+    if(from[0] && !access(from, R_OK) && (from_list = fopen(from, "r")))
+    {
+        while( fgets(src_file, 1024, from_list) )
+        {
+            STRTRIM(src_file);
+            if(src_file[0] && ABSPATH(src_file) && !access(pathspec, R_OK))
+            {
+                COM_TRY( dhCallMethod(impProject, L".AddSourceFile(%s)", src_file) );
+                count++;
+            }
+        }
+        fclose(from_list);
+    }
+
     while (optind < argc)
     {
-        if( _fullpath(pathspec, argv[optind++], sizeof(pathspec)/sizeof(char)) )
+        if(ABSPATH(argv[optind++]) && !access(pathspec, R_OK))
         {
             COM_TRY( dhCallMethod(impProject, L".AddSourceFile(%s)", pathspec) );
+            count++;
         }
+    }
+
+    if(count == 0)
+    {
+        fprintf(stderr, "No valid files were specified for creation, aborting.\n");
+        result = 1;
+        goto cleanup;
     }
 
     COM_TRY( dhPutValue(impProject, L".AuthorFirstName = %s", author)  );
@@ -204,22 +237,16 @@ int build_imp(int argc, char **argv)
 
     COM_TRY( dhPutValue(impProject, L".Encrypt         = %b", FALSE)   );
     COM_TRY( dhPutValue(impProject, L".RequireISBN     = %b", FALSE)   );
-
-    if(prj_save[0])
-    {
-        if( _fullpath(pathspec, prj_save, sizeof(pathspec)/sizeof(char)) )
-        {
-            COM_TRY( dhCallMethod(impProject, L".Save(%s)", pathspec) );
-        }
-    }
-
     COM_TRY( dhPutValue(impProject, L".BuildTarget = %d", (long)device) );
+
     COM_TRY( dhCallMethod(impBuilder, L".ValidateManifest(%o)", impProject) );
 
     if(prj_save[0])
     {
-        // save it again as the manifest may have changed
-        COM_TRY( dhCallMethod(impProject, L".Save(%s)", pathspec) );
+        if(ABSPATH(prj_save))
+        {
+            COM_TRY( dhCallMethod(impProject, L".Save(%s)", pathspec) );
+        }
     }
 
     if(device == 0) {
