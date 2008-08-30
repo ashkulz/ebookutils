@@ -4,7 +4,7 @@
 *.exe
 *.pyc
 impmake/src/version.h
-impserve/version.py
+impserve/impserve/version.py
 impserve/build
 impserve/dist
 impserve/MANIFEST

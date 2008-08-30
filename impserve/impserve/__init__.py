@@ -156,9 +156,9 @@ class ProxyClient:
 class ProxyResponse:
     """
     Plugins should implement a get_response() method, which accepts and returns
-    the headers and the content. This will be only called if request is OK.
+    the headers and the content.
 
-    def get_response(self, headers, content):
+    def get_response(self, url, headers, content):
         return headers, content
     """
     __metaclass__ = Plugin
@@ -211,9 +211,6 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
             f = urllib.urlopen(url, data=data)
             code, msg, data, info = 200, 'OK', f.read(), f.info()
-
-            for plugin in ProxyResponse.plugins:
-                info, data = plugin().get_response(info, data)
         except HttpError, e:
             code, msg, data, info = e.code, e.msg, e.data, e.info
         except:
@@ -224,6 +221,8 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             m = CONTENT_FILE.search(info['Content-Disposition'])
             if m:
                 info['Content-Type'] = self.guess_type(m.group(1))
+        for plugin in ProxyResponse.plugins:
+            info, data = plugin().get_response(url, info, data)
         for name in info:
             self.send_header(name, info.getheader(name))
         self.end_headers()
