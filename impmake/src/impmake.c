@@ -7,6 +7,7 @@
 #include "version.h"
 #include "disphelper.h"
 #include <stdio.h>
+#include <ctype.h>
 #include <wchar.h>
 #include <tchar.h>
 #include <time.h>
@@ -18,8 +19,10 @@
                       printf("\nExecution failed at %s:%d while attempting to execute\n  %s\n\n%s\n", \
                       __FILE__, __LINE__, #func, szMessage); result = 1; goto cleanup; }
 
+#define STRTRIM(str)   { int n = strlen(str); \
+                         while(n > 0 && isspace(str[--n])) str[n] = 0; }
 #define SET_OPT(target) { strncpy(target, optarg, (sizeof(target)/sizeof(char))-1);\
-                          target[(sizeof(target)/sizeof(char))-1] = 0;            }
+                          target[(sizeof(target)/sizeof(char))-1] = 0; STRTRIM(target) }
 #define TO_BOOL(i) ( (i == 0) ? FALSE : TRUE )
 
 /* ============================================================================ */
@@ -104,7 +107,7 @@ void load_options(int argc, char ** argv)
     /* set default option values */
     current = time(NULL);
     strcpy(author,   "Unknown");
-    strcpy(title,    asctime(localtime(&current)));
+    strcpy(title,    asctime(localtime(&current))); STRTRIM(title);
     strcpy(category, "Unclassified");
     strcpy(name,     "ebook");
     strcpy(outdir,   ".");
@@ -135,13 +138,13 @@ void load_options(int argc, char ** argv)
             case 'l':  error_log = 1;      break;
             case 'v':  printf("impmake %s\n", VERSION); exit(0);
             default:   help      = 1;      break;
-            
+
         }
     }
 
     if(help)
         usage();
-    
+
     if( _fullpath(pathspec, outdir, sizeof(pathspec)/sizeof(char)) )
         strcpy(outdir, pathspec);
 }
@@ -171,7 +174,7 @@ int build_imp(int argc, char **argv)
     COM_TRY( dhPutValue(impProject, L".Category        = %s", category));
     COM_TRY( dhPutValue(impProject, L".BookFileName    = %s", name)    );
     COM_TRY( dhPutValue(impProject, L".OutputDirectory = %s", outdir)  );
-    
+
     if(error_log)
     {
         COM_TRY( dhPutValue(impProject, L".ErrorDirectory  = %s", outdir)  );
@@ -193,8 +196,8 @@ int build_imp(int argc, char **argv)
     COM_TRY( dhPutValue(impProject, L".ConvertToJPEG   = %b", TO_BOOL(image_conv))  );
     COM_TRY( dhPutValue(impProject, L".PreScaleImages  = %b", TO_BOOL(image_scale)) );
     COM_TRY( dhPutValue(impProject, L".KeepAnchors     = %b", TO_BOOL(anchors))     );
-    
-    COM_TRY( dhPutValue(impProject, L".Encrypt         = %b", FALSE)   ); 
+
+    COM_TRY( dhPutValue(impProject, L".Encrypt         = %b", FALSE)   );
     COM_TRY( dhPutValue(impProject, L".RequireISBN     = %b", FALSE)   );
 
     if(prj_save[0])
@@ -207,7 +210,7 @@ int build_imp(int argc, char **argv)
 
     COM_TRY( dhPutValue(impProject, L".BuildTarget = %d", (long)device) );
     COM_TRY( dhCallMethod(impBuilder, L".ValidateManifest(%o)", impProject) );
-    
+
     if(prj_save[0])
     {
         // save it again as the manifest may have changed
@@ -223,7 +226,7 @@ int build_imp(int argc, char **argv)
 cleanup:
     SAFE_RELEASE(impProject);
     SAFE_RELEASE(impBuilder);
-    
+
     return result;
 }
 
@@ -240,6 +243,6 @@ int main(int argc, char **argv)
     dhInitialize(TRUE);
     result = build_imp(argc, argv);
     dhUninitialize(TRUE);
-    
+
     exit(result);
 }
