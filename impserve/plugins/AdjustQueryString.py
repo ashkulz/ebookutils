@@ -7,3 +7,4 @@ class AdjustQueryString(impserve.ProxyClient):
         (proto, host, path, param, qry, frag) = urlparse.urlparse(url)
         qry = qry.replace('&amp;', '&')
         return urlparse.urlunparse((proto, host, path, param, qry, frag))
+

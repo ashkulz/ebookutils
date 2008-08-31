@@ -138,7 +138,6 @@ class Plugin(type):
                 imp.load_source(os.path.splitext(f)[0], os.path.join(dir, f))
                 loaded.append(f)
             except:
-                raise
                 failed.append(f)
         return loaded, failed
 

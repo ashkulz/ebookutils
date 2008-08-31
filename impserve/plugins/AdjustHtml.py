@@ -10,7 +10,6 @@ class AdjustHtml(impserve.ProxyResponse):
 
         # add the UNDERLINE=YES attribute
         for a in soup.findAll('a', href=True):
-            print a
             a['UNDERLINE'] = 'YES'
 
         # remove all <a> tags without a href
@@ -18,3 +17,4 @@ class AdjustHtml(impserve.ProxyResponse):
             a.extract()
 
         return headers, soup.renderContents()
+
