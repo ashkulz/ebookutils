@@ -22,6 +22,7 @@ CONTENT_PREFIX  = "http://bookshelf.ebooksystem.net/content/"
 
 INDEX_FILES     = ['index.htm', 'index.html']
 CONTENT_FILE    = re.compile('filename="?([^"]+)"?')
+URL_CACHE_MAX   = 10
 
 ############################################################## ebook metadata
 
@@ -165,6 +166,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     root_dir       = get_root()
     shelf_dirs     = [ root_dir ]
     book_cache     = {}
+    url_cache      = []
 
     ############################################################ HTTP handler
 
@@ -220,11 +222,17 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_header(name, info.getheader(name))
         self.end_headers()
         self.wfile.write(data)
+        if code == 200 and 'text/html' in info['Content-Type']:
+            self.url_cache.append(url)
+            while len(self.url_cache) > URL_CACHE_MAX:
+                del self.url_cache[0]
 
     ########################################################### local content
 
     def handle_local_request(self, host, path, qry):
         if self.path.startswith(BOOKLIST_PREFIX):
+            while self.url_cache:
+                del self.url_cache[0]
             params = cgi.parse_qs(qry)
             index, length = 0, 100
             if 'INDEX' in params:
@@ -272,8 +280,12 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
         else:
+            location = CONTENT_PREFIX
+            if len(self.url_cache) >= 2:
+                self.url_cache.pop()
+                location = self.url_cache.pop()
             self.send_response(302, 'Found')
-            self.send_header("Location", CONTENT_PREFIX)
+            self.send_header("Location", location)
             self.end_headers()
 
     ######################################################## booklist helpers
