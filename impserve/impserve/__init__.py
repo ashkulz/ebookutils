@@ -20,12 +20,6 @@ BOOKLIST_PREFIX = "http://bookshelf.ebooksystem.net/bookshelf/default.asp?"
 BOOK_PREFIX     = "http://bookshelf.ebooksystem.net/bookshelf/getbook?"
 CONTENT_PREFIX  = "http://bookshelf.ebooksystem.net/content/"
 
-LOCAL_MESSAGE   = """
-<html><body><h1>Welcome to impserve %s</h1>
-<p>Your <a underline='yes' href="%sSHOW_HIDDEN=NO">online bookshelf</a>.</p>
-<p>Your <a underline='yes' href="%s">local content</a>.</p>
-</body></html>""" % (__version__, BOOKLIST_PREFIX, CONTENT_PREFIX)
-
 INDEX_FILES     = ['index.htm', 'index.html']
 CONTENT_FILE    = re.compile('filename="?([^"]+)"?')
 
@@ -278,11 +272,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
         else:
-            self.send_response(200)
-            self.send_header("Content-Length", len(LOCAL_MESSAGE))
-            self.send_header("Content-Type", 'text/html')
+            self.send_response(302, 'Found')
+            self.send_header("Location", CONTENT_PREFIX)
             self.end_headers()
-            self.wfile.write(LOCAL_MESSAGE)
 
     ######################################################## booklist helpers
 
