@@ -248,9 +248,18 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.wfile.write(data)
         elif self.path.startswith(BOOK_PREFIX):
             book_id = self.path[len(BOOK_PREFIX):]
+            delete = False
+            if book_id.endswith('&DELETE=YES'):
+                book_id, delete = book_id[:-len('&DELETE=YES')], True
             self.reload_cache()
             for info in self.book_cache.values():
                 if info[3] == book_id:
+                    if delete:
+                        os.remove(info[0])
+                        self.send_response(302, 'Found')
+                        self.send_header("Location", BOOKLIST_PREFIX+'REQUEST=100')
+                        self.end_headers()
+                        return
                     data = open(info[0], 'rb')
                     self.send_response(200)
                     self.send_header("Content-Length", info[1])
