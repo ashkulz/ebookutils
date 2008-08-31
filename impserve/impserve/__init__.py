@@ -19,7 +19,7 @@ LOCAL_DOMAIN    = ".ebooksystem.net"
 BOOKLIST_PREFIX = "http://bookshelf.ebooksystem.net/bookshelf/default.asp?"
 BOOK_PREFIX     = "http://bookshelf.ebooksystem.net/bookshelf/getbook?"
 CONTENT_PREFIX  = "http://bookshelf.ebooksystem.net/content/"
-
+REDIRECT_PREFIX = "http://register.ebooksystem.net/form/redirect.asp"
 INDEX_FILES     = ['index.htm', 'index.html']
 CONTENT_FILE    = re.compile('filename="?([^"]+)"?')
 URL_CACHE_MAX   = 10
@@ -288,6 +288,10 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_header("Content-Length", getsize(loc))
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
+        elif self.path.startswith(REDIRECT_PREFIX):
+            self.send_response(302, 'Found')
+            self.send_header("Location", cgi.parse_qs(qry)['target'][0])
+            self.end_headers()
         else:
             location = CONTENT_PREFIX
             if len(self.url_cache) >= 2:
