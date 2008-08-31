@@ -9,7 +9,7 @@
 from version import __version__
 
 import os, sys, re, imp, signal, socket, select, urlparse, urllib, shutil
-import SocketServer, BaseHTTPServer, mimetypes, cgi
+import BaseHTTPServer, mimetypes, cgi
 
 from   os.path import *
 
@@ -310,9 +310,6 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def address_string(self):
         return self.client_address[0]
 
-class ThreadingHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
-    pass
-
 ######################################################################## main
 
 def run(host, port, dirs=[]):
@@ -327,7 +324,7 @@ def run(host, port, dirs=[]):
         if isdir(dir):
             ImpProxyHandler.shelf_dirs.append(abspath(dir))
 
-    httpd = ThreadingHTTPServer((host,port), ImpProxyHandler)
+    httpd = BaseHTTPServer.HTTPServer((host,port), ImpProxyHandler)
 
     sname = httpd.socket.getsockname()
     print "impmake %s: starting server on %s:%s" % \
