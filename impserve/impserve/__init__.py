@@ -238,7 +238,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             if 'INDEX' in params:
                 index = int(params['INDEX'][0])-1
             if 'REQUEST' in params:
-                length = int(params['REQUEST'][0])-1
+                length = int(params['REQUEST'][0])
             self.reload_cache()
             data = self.get_booklist(index, length)
             self.send_response(200)
