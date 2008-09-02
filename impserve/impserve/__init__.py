@@ -344,7 +344,7 @@ def run(host, port, dirs=[]):
     httpd = BaseHTTPServer.HTTPServer((host,port), ImpProxyHandler)
 
     sname = httpd.socket.getsockname()
-    print "impmake %s: starting server on %s:%s" % \
+    print "impserve %s: starting server on %s:%s" % \
             (__version__, sname[0], sname[1])
 
     httpd.serve_forever()
