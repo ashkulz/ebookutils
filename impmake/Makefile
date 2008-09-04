@@ -10,7 +10,7 @@ disphelper.o: src/disphelper.c src/disphelper.h
 	gcc -O2 -w    -c -o disphelper.o src/disphelper.c
 
 clean:
-	rm -f *.o *.exe
-
-distclean:
 	rm -f *.o *.exe src/version.h
+
+src/version.h:
+	python ../update_version.py -dev

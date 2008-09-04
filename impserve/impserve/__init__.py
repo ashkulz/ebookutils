@@ -6,12 +6,19 @@
 ##  This software is licensed under the terms mentioned in the file LICENSE.
 ##
 
-from version import __version__
-
 import os, sys, re, imp, signal, socket, select, urlparse, urllib, shutil
 import BaseHTTPServer, mimetypes, cgi
 
 from   os.path import *
+
+try:
+    from version import __version__
+except:
+    _version_file = join(dirname(sys.argv[0]), '../VERSION')
+    if isfile(_version_file):
+        __version__ = open(_version_file).read().strip() + '-dev'
+    else:
+        __version__ = '(unreleased)'
 
 ################################################################ service URLs
 
