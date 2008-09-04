@@ -85,8 +85,6 @@ def get_root():
     if sys.platform == 'win32' and \
             isdir(join(os.environ.get("APPDATA", ""), "impserve")):
         return abspath(expanduser("~/.impserve"))
-    if '__file__' in globals():
-        return abspath(join(dirname(__file__), ".."))
     if sys.argv[0]:
         return dirname(abspath(sys.argv[0]))
     return abspath(os.getcwd())
@@ -336,6 +334,8 @@ def run(host, port, dirs=[]):
     l, f = Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
     for plugin in l:
         print "Loaded plugin: " + plugin
+    if f:
+        print "The following plugins failed to load:", ','.join(f)
 
     for dir in dirs:
         if isdir(dir):
