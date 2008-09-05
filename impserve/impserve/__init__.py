@@ -335,8 +335,10 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 ######################################################################## main
 
 def run(host, port, dirs=[]):
-    if not mimetypes.inited:
-        mimetypes.init(join(ImpProxyHandler.root_dir, 'mime.types'))
+    mime_file = join(ImpProxyHandler.root_dir, 'mime.types')
+    if not mimetypes.inited and isfile(mime_file):
+        mimetypes.init(mime_file)
+        print "Loading MIME definitions from", mime_file
     mimetypes.add_type('application/x-softbook', '.imp')
     l, f = Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
     for plugin in l:
