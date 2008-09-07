@@ -209,7 +209,12 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 except: pass
                 self.connection.setblocking(1)
 
-            f = urllib.urlopen(url, data=data)
+            if 'Cookie' in self.headers:
+                opener = ImpURLopener()
+                opener.addheader('Cookie', self.headers['Content-Length'])
+                f = opener.open(url, data=data)
+            else:
+                f = urllib.urlopen(url, data=data)
             code, msg, data, info = 200, 'OK', f.read(), f.info()
         except HttpError, e:
             code, msg, data, info = e.code, e.msg, e.data, e.info
