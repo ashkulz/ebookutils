@@ -1,4 +1,4 @@
-This is impmake, a utility for creating ebooks for the 1100/1150/1200
+This is impbuild, a utility for creating ebooks for the 1100/1150/1200
 from HTML source files. It requires the installation of eBook Publisher from 
 
      http://ebooktechnologies.com/support_publisher_download.htm
@@ -10,9 +10,10 @@ In case this is not installed, you may get an error:
 
 To compile the code, you will need MinGW with MSys from http://mingw.org
 Just switch to the directory where you extracted the files, and type
-"make" from Msys command prompt.
+"make" from Msys command prompt. Alternatively, you can install MinGW on
+Linux and type "make CC=i586-mingw32msvc-gcc" to compile.
 
-Usage: impmake [-OPTIONS] FILES [...]
+Usage: impbuild [-OPTIONS] FILES [...]
 
 -v             Show the version.
 -h, --help     Show this help message.
