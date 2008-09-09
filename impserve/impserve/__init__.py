@@ -137,7 +137,8 @@ class Plugin(type):
             try:
                 imp.load_source(os.path.splitext(f)[0], os.path.join(dir, f))
                 loaded.append(f)
-            except:
+            except Exception, e:
+                print "Unexpected error while loading %s: %s" % (f, e)
                 failed.append(f)
         return loaded, failed
 
@@ -348,8 +349,6 @@ def run(host, port, dirs=[]):
     l, f = Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
     for plugin in l:
         print "Loaded plugin: " + plugin
-    if f:
-        print "The following plugins failed to load:", ','.join(f)
 
     for dir in dirs:
         if isdir(dir):

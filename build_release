@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+import os, sys, shutil, subprocess, tempfile, getpass
+
+VERSION = open('VERSION').read().strip()
+EVERSION = 'ebookutils-'+VERSION
+
+def p(str, *args):
+    print str % tuple(args),
+    sys.stdout.flush()
+
+def makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def shell(cmd):
+    return subprocess.call(cmd, shell=True)
+
+def build_release():
+    open('impbuild/src/version.h', 'w').write('#define VERSION "%s"\n' % VERSION)
+    open('impserve/impserve/version.py', 'w').write('__version__ = "%s"\n' % VERSION)
+    makedirs('dist')
+    shell('git-archive --format=tar --prefix=%s/ HEAD | gzip -9 > dist/%s-src.tar.gz' % (EVERSION, EVERSION))
+    os.chdir('impbuild')
+    shell('make CC=i586-mingw32msvc-gcc clean all')
+    os.chdir('../impserve')
+    if os.path.exists('build'): shutil.rmtree('build')
+    if os.path.exists('dist'):  shutil.rmtree('dist')
+    shell('wine python setup_win32.py py2exe -b 2 -c')
+    shell('cp ~/.wine/drive_c/windows/system32/python25.dll dist/python25.dll')
+    shell('cp ~/.wine/drive_c/windows/system32/msvcr71.dll dist/msvcr71.dll')
+    shutil.move('dist/run.exe', 'dist/impserve.exe')
+    shutil.move('../impbuild/impbuild.exe', 'dist/impbuild.exe')
+    makedirs('dist/plugins')
+    makedirs('dist/content')
+    shell('git ls-files plugins | xargs -I% cp % dist/plugins')
+    shell('git ls-files content | xargs -I% cp % dist/content')
+    shutil.rmtree('build')
+    shutil.move('dist', EVERSION)
+    shell('zip -9 -r ../dist/%s-win32.zip %s' % (EVERSION, EVERSION))
+    shutil.rmtree(EVERSION)
+    os.chdir('..')
+
+def upload_to_ftp():
+    os.chdir('dist')
+    from ftplib import FTP
+    ftp = FTP('ftp.berlios.de')
+    ftp.login()
+    ftp.cwd('incoming')
+    for f in os.listdir('.'):
+        print 'Uploading', f
+        try:
+            ftp.storbinary('STOR '+f, open(f, 'rb'))
+        except Exception, e:
+            print e
+    os.chdir('.')
+
+def get_notes(msg):
+    handle, name = tempfile.mkstemp()
+    os.write(handle, '## Enter the '+msg)
+    os.close(handle)
+    subprocess.call([os.getenv('EDITOR') or 'vi', name])
+    data = open(name).read().strip()
+    os.remove(name)
+    if not data:
+        return ''
+    return '\n'.join([l.strip() for l in data.splitlines() if not l.startswith('##')])
+
+def create_release():
+    release_notes = get_notes('release notes')
+    changelog     = get_notes('change log')
+
+    print "Berlios Username:",
+    username = raw_input()
+    print "Berlios ",
+    password = getpass.getpass()
+
+    p("Trying to log in ...")
+
+    from mechanize import Browser
+    b = Browser()
+    b.open('https://developer.berlios.de/account/login.php')
+    b.select_form(nr=2)
+    b['form_loginname'] = username
+    b['form_pw']        = password
+    response = b.submit()
+    if response.geturl() == 'https://developer.berlios.de/account/login.php':
+        p("failed.\n")
+        return
+    p("success.\n")
+
+    p("Creating new release ...")
+    b.open('https://developer.berlios.de/project/admin/newrelease.php?package_id=4839&group_id=10046')
+    b.select_form(nr=1)
+    b['release_name'] = VERSION
+    response = b.submit()
+
+    b.select_form(nr=1)
+    b['release_notes']   = release_notes
+    b['release_changes'] = changelog
+
+    os.chdir('dist')
+    b['file_list[]'] = [for f in os.listdir('dist')]
+    os.chdir('.')
+
+
+if __name__ == '__main__':
+    build_release()
+    upload_to_ftp()
+    #~ create_release()

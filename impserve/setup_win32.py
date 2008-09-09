@@ -19,6 +19,6 @@ setup(
     options    = { "py2exe": {
                                 "unbuffered": True,
                                 "optimize": 2,
-                                "includes": ['BeautifulSoup']
+                                "includes": ['BeautifulSoup', 'subprocess']
                              } }
 )
