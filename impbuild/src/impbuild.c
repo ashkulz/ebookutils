@@ -76,7 +76,7 @@ static struct option long_options[] = {
 void usage()
 {
     printf("\n\
-Usage: impmake [-OPTIONS] FILES [...]\n\n\
+Usage: impbuild [-OPTIONS] FILES [...]\n\n\
 -v             Show the version.\n\
 -h, --help     Show this help message.\n\n\
 --1100, --1150, --1200, --oeb\n\
@@ -141,7 +141,7 @@ void load_options(int argc, char ** argv)
             case 'e':  SET_OPT(language);  break;
             case 'f':  SET_OPT(from);      break;
             case 'l':  error_log = 1;      break;
-            case 'v':  printf("impmake %s\n", VERSION); exit(0);
+            case 'v':  printf("impbuild %s\n", VERSION); exit(0);
             default:   error     = 1;      break;
        }
     }

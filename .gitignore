@@ -3,7 +3,7 @@
 *.o
 *.exe
 *.pyc
-impmake/src/version.h
+impbuild/src/version.h
 impserve/impserve/version.py
 impserve/build
 impserve/dist
