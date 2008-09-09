@@ -99,7 +99,7 @@ def create_release():
     b['release_changes'] = changelog
 
     os.chdir('dist')
-    b['file_list[]'] = [for f in os.listdir('dist')]
+    b['file_list[]'] = [f for f in os.listdir('dist')]
     os.chdir('.')
 
 
