@@ -25,7 +25,7 @@ def build_release():
     os.chdir('../src')
     if os.path.exists('build'): shutil.rmtree('build')
     if os.path.exists('dist'):  shutil.rmtree('dist')
-    shell('python setup.py bdist_egg')
+    shell('python setup.py bdist_egg upload')
     shell('mv dist/*.egg ../dist/ ; rm -fR build dist')
     shell('wine python setup.py py2exe -b 2 -c')
     shell('cp ~/.wine/drive_c/windows/system32/python25.dll dist/python25.dll')

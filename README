@@ -1,10 +1,8 @@
-ebookutils
-==========
-
-This is a collection of utilities which are useful for working
+ebookutils is a collection of utilities which are useful for working
 with ebooks, specifically the REB1100/1150/1200 models made by
 RCA in the early 2000s. Currently, it includes the following:
 
-impbuild:  automated creation of ebooks in the IMP format.
+impbuild: automated creation of ebooks in the IMP format.
+
 impserve: content server and internet proxy for the 1150/1200 models.
 
