@@ -4,6 +4,6 @@
 *.exe
 *.pyc
 dist
-impserve/build
-impserve/dist
-impserve/MANIFEST
+src/build
+src/dist
+src/ebookutils.egg-info

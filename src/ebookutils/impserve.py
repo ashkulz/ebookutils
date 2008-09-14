@@ -7,18 +7,10 @@
 ##
 
 import os, sys, re, imp, signal, socket, select, urlparse, urllib, shutil
-import BaseHTTPServer, mimetypes, cgi
+import BaseHTTPServer, mimetypes, cgi, getopt
 
-from   os.path import *
-
-try:
-    from version import __version__
-except:
-    _version_file = join(dirname(sys.argv[0]), '../VERSION')
-    if isfile(_version_file):
-        __version__ = open(_version_file).read().strip() + '-dev'
-    else:
-        __version__ = '(unreleased)'
+from os.path    import *
+from ebookutils import __version__
 
 ################################################################ service URLs
 
@@ -85,13 +77,13 @@ def get_ebook_list(path, existing={}):
 def get_root():
     """ return the root directory to serve from """
 
-    if 'IMPSERVE_PATH' in os.environ:
-        return abspath(os.environ['IMPSERVE_PATH'])
+    if 'IMPSERVE' in os.environ:
+        return abspath(os.environ['IMPSERVE'])
     if isdir(expanduser("~/.impserve")):
         return abspath(expanduser("~/.impserve"))
     if sys.platform == 'win32' and \
             isdir(join(os.environ.get("APPDATA", ""), "impserve")):
-        return abspath(expanduser("~/.impserve"))
+        return abspath(join(os.environ.get("APPDATA", ""), "impserve"))
     if sys.argv[0]:
         return dirname(abspath(sys.argv[0]))
     return abspath(os.getcwd())
@@ -124,6 +116,7 @@ class Plugin(type):
             # Simply appending it to the list is all that's needed to keep
             # track of it later.
             cls.plugins.append(cls)
+            print 'Loaded plugin:', cls.__name__
 
     @staticmethod
     def load_from(dir):
@@ -170,7 +163,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     server_version = 'impserve/' + __version__
     root_dir       = get_root()
-    shelf_dirs     = [ root_dir ]
+    shelf_dirs     = [ join(root_dir, 'shelf') ]
     book_cache     = {}
     url_cache      = []
 
@@ -346,9 +339,7 @@ def run(host, port, dirs=[]):
         mimetypes.init(mime_file)
         print "Loading MIME definitions from", mime_file
     mimetypes.add_type('application/x-softbook', '.imp')
-    l, f = Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
-    for plugin in l:
-        print "Loaded plugin: " + plugin
+    Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
 
     for dir in dirs:
         if isdir(dir):
@@ -361,3 +352,38 @@ def run(host, port, dirs=[]):
             (__version__, sname[0], sname[1])
 
     httpd.serve_forever()
+
+def usage():
+    print """
+Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
+-h          show this help message.
+-v          show the version.
+-a ADDRESS  listen on the specified IP address (default: 0.0.0.0)
+-p PORT     listen on the specified port       (default: 9090)
+"""
+
+def main():
+    host, port = '', 9090
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hva:p:")
+    except getopt.GetoptError, err:
+        print str(err)
+        usage()
+        sys.exit(2)
+    for o, a in opts:
+        if o == '-h':
+            usage()
+            sys.exit(0)
+        elif o == '-v':
+            print 'impserve %s' % __version__
+            sys.exit(0)
+        elif o == '-a':
+            host = a
+        elif o == '-p':
+            port = int(a)
+        else:
+            print 'Unhandled option'
+            sys.exit(3)
+
+    run(host, port, args)
+    sys.exit(0)

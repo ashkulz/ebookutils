@@ -1,4 +1,4 @@
-import impserve
+from ebookutils import impserve
 from BeautifulSoup import BeautifulSoup
 
 class AdjustHtml(impserve.ProxyResponse):

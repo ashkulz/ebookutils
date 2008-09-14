@@ -1,5 +1,5 @@
 import urlparse
-import impserve
+from ebookutils import impserve
 
 ## hack to get the query parameters working via the inbuilt browser
 class AdjustQueryString(impserve.ProxyClient):

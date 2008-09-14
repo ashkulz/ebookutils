@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys, shutil, subprocess, tempfile, getpass
+import os, sys, re, shutil, subprocess, tempfile, getpass
 
 VERSION = open('VERSION').read().strip()
 EVERSION = 'ebookutils-'+VERSION
@@ -17,31 +17,37 @@ def shell(cmd):
 
 def build_release():
     open('impbuild/src/version.h', 'w').write('#define VERSION "%s"\n' % VERSION)
-    open('impserve/impserve/version.py', 'w').write('__version__ = "%s"\n' % VERSION)
+    open('src/ebookutils/__init__.py', 'w').write('__version__ = "%s"\n' % VERSION)
     makedirs('dist')
     shell('git-archive --format=tar --prefix=%s/ HEAD | gzip -9 > dist/%s-src.tar.gz' % (EVERSION, EVERSION))
     os.chdir('impbuild')
     shell('make CC=i586-mingw32msvc-gcc clean all')
-    os.chdir('../impserve')
+    os.chdir('../src')
     if os.path.exists('build'): shutil.rmtree('build')
     if os.path.exists('dist'):  shutil.rmtree('dist')
-    shell('wine python setup_win32.py py2exe -b 2 -c')
+    shell('python setup.py bdist_egg')
+    shell('mv dist/*.egg ../dist/ ; rm -fR build dist')
+    shell('wine python setup.py py2exe -b 2 -c')
     shell('cp ~/.wine/drive_c/windows/system32/python25.dll dist/python25.dll')
     shell('cp ~/.wine/drive_c/windows/system32/msvcr71.dll dist/msvcr71.dll')
-    shutil.move('dist/run.exe', 'dist/impserve.exe')
     shutil.move('../impbuild/impbuild.exe', 'dist/impbuild.exe')
     makedirs('dist/plugins')
     makedirs('dist/content')
+    makedirs('dist/shelf')
     shell('git ls-files plugins | xargs -I% cp % dist/plugins')
     shell('git ls-files content | xargs -I% cp % dist/content')
+    shell('git ls-files shelf   | xargs -I% cp % dist/shelf')
     shutil.rmtree('build')
     shutil.move('dist', EVERSION)
     shell('zip -9 -r ../dist/%s-win32.zip %s' % (EVERSION, EVERSION))
     shutil.rmtree(EVERSION)
     os.chdir('..')
+    if os.path.exists(os.path.join('..', EVERSION)): shutil.rmtree(os.path.join('..', EVERSION))
+    shutil.move('dist', os.path.join('..', EVERSION))
+    shell('git clean -d ; git clean -d -X')
 
 def upload_to_ftp():
-    os.chdir('dist')
+    os.chdir(os.path.join('..', EVERSION))
     from ftplib import FTP
     ftp = FTP('ftp.berlios.de')
     ftp.login()
@@ -52,7 +58,6 @@ def upload_to_ftp():
             ftp.storbinary('STOR '+f, open(f, 'rb'))
         except Exception, e:
             print e
-    os.chdir('.')
 
 def get_notes(msg):
     handle, name = tempfile.mkstemp()
@@ -65,7 +70,7 @@ def get_notes(msg):
         return ''
     return '\n'.join([l.strip() for l in data.splitlines() if not l.startswith('##')])
 
-def create_release():
+def create_berlios_release(group_id, package_id):
     release_notes = get_notes('release notes')
     changelog     = get_notes('change log')
 
@@ -88,22 +93,35 @@ def create_release():
         return
     p("success.\n")
 
-    p("Creating new release ...")
-    b.open('https://developer.berlios.de/project/admin/newrelease.php?package_id=4839&group_id=10046')
-    b.select_form(nr=1)
-    b['release_name'] = VERSION
-    response = b.submit()
+    p("Checking if release exists...")
+    data = b.open('https://developer.berlios.de/project/admin/editreleases.php?group_id=%d&package_id=%d' % (group_id, package_id)).read()
+    match = re.search(EVERSION+r'\s+<a\s+href="([^"]+)', data)
+    if not match:
+        p("no.\nCreating new release ...")
+        b.open('https://developer.berlios.de/project/admin/newrelease.php?group_id=%d&package_id=%d' % (group_id, package_id))
+        b.select_form(nr=1)
+        b['release_name'] = EVERSION
+        response = b.submit()
+        url = response.geturl()
+    else:
+        url = match.group(1)
+    release_id = int(re.search('package_id=(\d+)', url).group(1))
+    p('ok.\n')
+    release_url = 'https://developer.berlios.de/project/admin/editreleases.php?group_id=%d&package_id=%d&release_id=%d' % (group_id, package_id, release_id)
+
+    p('Editing release details...')
+    response = b.open(release_url)
 
     b.select_form(nr=1)
     b['release_notes']   = release_notes
     b['release_changes'] = changelog
+    b.submit()
 
-    os.chdir('dist')
-    b['file_list[]'] = [f for f in os.listdir('dist')]
-    os.chdir('.')
+    p('done.\n')
 
+    #~ b['file_list[]'] = [f for f in os.listdir('.')]
 
 if __name__ == '__main__':
     build_release()
     upload_to_ftp()
-    #~ create_release()
+    #~ create_berlios_release(10046, 4839)
