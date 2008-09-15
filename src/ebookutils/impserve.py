@@ -17,6 +17,7 @@ BOOKLIST_PREFIX = "http://bookshelf.ebooksystem.net/bookshelf/default.asp?"
 BOOK_PREFIX     = "http://bookshelf.ebooksystem.net/bookshelf/getbook?"
 CONTENT_PREFIX  = "http://bookshelf.ebooksystem.net/content/"
 REDIRECT_PREFIX = "http://register.ebooksystem.net/form/redirect.asp"
+AUTH_PREFIX     = "http://authenticate.ebooksystem.net/authenticate/default.asp?"
 INDEX_FILES     = ['index.htm', 'index.html']
 CONTENT_FILE    = re.compile('filename="?([^"]+)"?')
 URL_CACHE_MAX   = 10
@@ -311,6 +312,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_response(302, 'Found')
             self.send_header("Location", cgi.parse_qs(qry)['target'][0])
             self.end_headers()
+        elif self.path.startswith(AUTH_PREFIX):
+            if cgi.parse_qs(qry)['COLOR'][0] == 'YES':
+                self.config.ebook_type = 1
+            else:
+                self.config.ebook_type = 2
+            self.send_response(302, 'Found')
+            self.send_header("Location", CONTENT_PREFIX)
+            self.end_headers()
         else:
             location = CONTENT_PREFIX
             if len(self.config.url_cache) >= 2:
@@ -325,12 +334,17 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def get_booklist(self, start=0, length=9999):
         """ return the updated book list """
 
-        names = self.config.book_cache.keys()
+        book_cache = self.config.book_cache
+        if self.config.ebook_type:
+            names = [name for name in book_cache \
+                     if book_cache[name].type == self.config.ebook_type]
+        else:
+            names = book_cache.keys()
         names.sort()
 
         result = "1\r\n"
         for book in names[start:start+length]:
-            info = self.config.book_cache[book]
+            info = book_cache[book]
             result += 'None:'
             result += '\t'.join([info.id, info.title, info.author, info.category, \
                                  str(info.size), BOOK_PREFIX+info.id])
