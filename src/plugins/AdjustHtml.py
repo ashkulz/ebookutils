@@ -1,11 +1,11 @@
 from ebookutils import impserve
-from BeautifulSoup import BeautifulSoup
 
 class AdjustHtml(impserve.ProxyResponse):
     def get_response(self, url, headers, data):
         if not 'text/html' in headers['Content-Type']:
             return headers, data
 
+        from BeautifulSoup import BeautifulSoup
         soup = BeautifulSoup(data)
 
         # add the UNDERLINE=YES attribute

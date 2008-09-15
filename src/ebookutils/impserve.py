@@ -6,10 +6,8 @@
 ##  This software is licensed under the terms mentioned in the file LICENSE.
 ##
 
-import os, sys, re, imp, signal, socket, select, urlparse, urllib, shutil
-import BaseHTTPServer, mimetypes, cgi, getopt
+import os, sys, re, imp, urlparse, urllib, shutil, mimetypes, cgi, BaseHTTPServer
 
-from os.path    import *
 from ebookutils import __version__
 
 ################################################################ service URLs
@@ -25,11 +23,21 @@ URL_CACHE_MAX   = 10
 
 ############################################################## ebook metadata
 
+class attrdict(dict):
+    def __getattr__(self, item):
+        return self.__getitem__(item)
+    def __setattr__(self, item, value):
+        self.__setitem__(item, value)
+
 def get_ebook_info(name):
-    """ get the details of the IMP book as a tuple """
-    if not isfile(name):
+    """ get the details of the IMP book """
+
+    if not os.path.isfile(name):
         return None
-    info = [name, getsize(name), getmtime(name)]
+    info = attrdict()
+    info.name, info.size, info.mtime = \
+        name, os.path.getsize(name), os.path.getmtime(name)
+
     f = open(name, 'rb')
     if f.read(10) != '\x00\x02BOOKDOUG':
         return None
@@ -44,30 +52,31 @@ def get_ebook_info(name):
                 result, data = '', ''
             result += data
 
-    f.read(38)
-    info += [cString(), cString(), cString(1), cString(2)]
+    info.type = (ord(f.read(38)[33]) & 0xF0) >> 4
+    info.id, info.category, info.title, info.author = \
+        cString(), cString(), cString(1), cString(2)
     f.close()
-    return tuple(info)
+    return info
 
 def get_ebook_list(path, existing={}):
-    """ get the list of ebooks under a given path (with optional caching) """
+    """ get the list of ebooks under a given path (with optional cache) """
 
-    if not isdir(path):
+    if not os.path.isdir(path):
         return existing
 
     current = {}
     for file, info in existing.items():
-        if not isfile(file):
+        if not os.path.isfile(file):
             continue
-        if getmtime(file) != info[2]:
+        if os.path.getmtime(file) != info.mtime:
             current[file] = get_ebook_info(file)
         else:
             current[file] = info
 
-    for root, dirs, files in os.walk(abspath(path)):
+    for root, dirs, files in os.walk(os.path.abspath(path)):
         for name in files:
             if name.lower().endswith('.imp'):
-                fname = join(root, name)
+                fname = os.path.join(root, name)
                 if fname not in existing:
                     current[fname] = get_ebook_info(fname)
     return current
@@ -77,15 +86,17 @@ def get_ebook_list(path, existing={}):
 def get_root():
     """ return the root directory to serve from """
 
+    isdir, abspath, join = os.path.isdir, os.path.abspath, os.path.join
+
     if 'IMPSERVE' in os.environ:
         return abspath(os.environ['IMPSERVE'])
-    if isdir(expanduser("~/.impserve")):
-        return abspath(expanduser("~/.impserve"))
+    if isdir(os.path.expanduser("~/.impserve")):
+        return abspath(os.path.expanduser("~/.impserve"))
     if sys.platform == 'win32' and \
             isdir(join(os.environ.get("APPDATA", ""), "impserve")):
         return abspath(join(os.environ.get("APPDATA", ""), "impserve"))
     if sys.argv[0]:
-        return dirname(abspath(sys.argv[0]))
+        return os.path.dirname(abspath(sys.argv[0]))
     return abspath(os.getcwd())
 
 class HttpError(Exception):
@@ -163,7 +174,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
     server_version = 'impserve/' + __version__
     root_dir       = get_root()
-    shelf_dirs     = [ join(root_dir, 'shelf') ]
+    shelf_dirs     = [ os.path.join(root_dir, 'shelf') ]
     book_cache     = {}
     url_cache      = []
 
@@ -257,16 +268,16 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 book_id, delete = book_id[:-len('&DELETE=YES')], True
             self.reload_cache()
             for info in self.book_cache.values():
-                if info[3] == book_id:
+                if info.id == book_id:
                     if delete:
-                        os.remove(info[0])
+                        os.remove(info.name)
                         self.send_response(302, 'Found')
                         self.send_header("Location", BOOKLIST_PREFIX+'REQUEST=100')
                         self.end_headers()
                         return
-                    data = open(info[0], 'rb')
+                    data = open(info.name, 'rb')
                     self.send_response(200)
-                    self.send_header("Content-Length", info[1])
+                    self.send_header("Content-Length", info.size)
                     self.send_header("Content-Type", 'application/x-softbook')
                     self.end_headers()
                     shutil.copyfileobj(data, self.wfile)
@@ -275,21 +286,21 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.send_error(404, "File not found")
                 return
         elif self.path.startswith(CONTENT_PREFIX):
-            loc = join(self.root_dir, normpath(path)[1:])
-            if isdir(loc):
+            loc = os.path.join(self.root_dir, os.path.normpath(path)[1:])
+            if os.path.isdir(loc):
                 for index in INDEX_FILES:
-                    if isfile(join(loc, index)):
-                        loc = join(loc, index)
+                    if os.path.isfile(os.path.join(loc, index)):
+                        loc = os.path.join(loc, index)
                         break
                 else:
                     self.send_error(404, "File not found")
                     return
-            elif not isfile(loc):
+            elif not os.path.isfile(loc):
                     self.send_error(404, "File not found")
                     return
             self.send_response(200)
             self.send_header("Content-Type", self.guess_type(loc))
-            self.send_header("Content-Length", getsize(loc))
+            self.send_header("Content-Length", os.path.getsize(loc))
             self.end_headers()
             shutil.copyfileobj(open(loc, 'rb'), self.wfile)
         elif self.path.startswith(REDIRECT_PREFIX):
@@ -315,9 +326,11 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
         result = "1\r\n"
         for book in names[start:start+length]:
-            i = self.book_cache[book]
-            result += "None:%s\t%s\t%s\t%s\t%d\t%s\t1\t17\r\n" % \
-                      (i[3], i[5], i[6], i[4], i[1], BOOK_PREFIX+i[3])
+            info = self.book_cache[book]
+            result += 'None:'
+            result += '\t'.join([info.id, info.title, info.author, info.category, \
+                                 str(info.size), BOOK_PREFIX+info.id])
+            result += '\t1\t17\r\n'
         result += "\r\n\r\n"
         return result
 
@@ -334,16 +347,16 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 ######################################################################## main
 
 def run(host, port, dirs=[]):
-    mime_file = join(ImpProxyHandler.root_dir, 'mime.types')
-    if not mimetypes.inited and isfile(mime_file):
+    mime_file = os.path.join(ImpProxyHandler.root_dir, 'mime.types')
+    if not mimetypes.inited and os.path.isfile(mime_file):
         mimetypes.init(mime_file)
         print "Loading MIME definitions from", mime_file
     mimetypes.add_type('application/x-softbook', '.imp')
-    Plugin.load_from(join(ImpProxyHandler.root_dir, 'plugins'))
+    Plugin.load_from(os.path.join(ImpProxyHandler.root_dir, 'plugins'))
 
     for dir in dirs:
-        if isdir(dir):
-            ImpProxyHandler.shelf_dirs.append(abspath(dir))
+        if os.path.isdir(dir):
+            ImpProxyHandler.shelf_dirs.append(os.path.abspath(dir))
 
     httpd = BaseHTTPServer.HTTPServer((host,port), ImpProxyHandler)
 
@@ -363,6 +376,7 @@ Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
 """
 
 def main():
+    import getopt
     host, port = '', 9090
     try:
         opts, args = getopt.getopt(sys.argv[1:], "hva:p:")
