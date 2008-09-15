@@ -112,6 +112,14 @@ class ImpURLopener(urllib.URLopener):
 
 urllib._urlopener = ImpURLopener()
 
+config = attrdict({
+    'root_dir'   : get_root(),
+    'shelf_dirs' : [],
+    'book_cache' : {},
+    'url_cache'  : [],
+    'ebook_type' : 0
+})
+
 ############################################################ plugin framework
 
 class Plugin(type):
@@ -173,10 +181,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     """ the actual HTTP handler class """
 
     server_version = 'impserve/' + __version__
-    root_dir       = get_root()
-    shelf_dirs     = [ os.path.join(root_dir, 'shelf') ]
-    book_cache     = {}
-    url_cache      = []
+    config = config
 
     ############################################################ HTTP handler
 
@@ -238,16 +243,15 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
         if code == 200 and 'text/html' in info['Content-Type']:
-            self.url_cache.append(url)
-            while len(self.url_cache) > URL_CACHE_MAX:
-                del self.url_cache[0]
+            self.config.url_cache.append(url)
+            while len(self.config.url_cache) > URL_CACHE_MAX:
+                del self.config.url_cache[0]
 
     ########################################################### local content
 
     def handle_local_request(self, host, path, qry):
         if self.path.startswith(BOOKLIST_PREFIX):
-            while self.url_cache:
-                del self.url_cache[0]
+            self.config.url_cache = []
             params = cgi.parse_qs(qry)
             index, length = 0, 100
             if 'INDEX' in params:
@@ -267,7 +271,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             if book_id.endswith('&DELETE=YES'):
                 book_id, delete = book_id[:-len('&DELETE=YES')], True
             self.reload_cache()
-            for info in self.book_cache.values():
+            for info in self.config.book_cache.values():
                 if info.id == book_id:
                     if delete:
                         os.remove(info.name)
@@ -286,7 +290,7 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 self.send_error(404, "File not found")
                 return
         elif self.path.startswith(CONTENT_PREFIX):
-            loc = os.path.join(self.root_dir, os.path.normpath(path)[1:])
+            loc = os.path.join(self.config.root_dir, os.path.normpath(path)[1:])
             if os.path.isdir(loc):
                 for index in INDEX_FILES:
                     if os.path.isfile(os.path.join(loc, index)):
@@ -309,9 +313,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.end_headers()
         else:
             location = CONTENT_PREFIX
-            if len(self.url_cache) >= 2:
-                self.url_cache.pop()
-                location = self.url_cache.pop()
+            if len(self.config.url_cache) >= 2:
+                self.config.url_cache.pop()
+                location = self.config.url_cache.pop()
             self.send_response(302, 'Found')
             self.send_header("Location", location)
             self.end_headers()
@@ -321,12 +325,12 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def get_booklist(self, start=0, length=9999):
         """ return the updated book list """
 
-        names = self.book_cache.keys()
+        names = self.config.book_cache.keys()
         names.sort()
 
         result = "1\r\n"
         for book in names[start:start+length]:
-            info = self.book_cache[book]
+            info = self.config.book_cache[book]
             result += 'None:'
             result += '\t'.join([info.id, info.title, info.author, info.category, \
                                  str(info.size), BOOK_PREFIX+info.id])
@@ -338,8 +342,8 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         return mimetypes.guess_type(fname)[0] or 'application/octet-stream'
 
     def reload_cache(self):
-        for dir in self.shelf_dirs:
-            self.book_cache = get_ebook_list(dir, self.book_cache)
+        for dir in self.config.shelf_dirs:
+            self.config.book_cache = get_ebook_list(dir, self.config.book_cache)
 
     def address_string(self):
         return self.client_address[0]
@@ -347,16 +351,19 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 ######################################################################## main
 
 def run(host, port, dirs=[]):
-    mime_file = os.path.join(ImpProxyHandler.root_dir, 'mime.types')
+    global config
+    mime_file = os.path.join(config.root_dir, 'mime.types')
     if not mimetypes.inited and os.path.isfile(mime_file):
         mimetypes.init(mime_file)
         print "Loading MIME definitions from", mime_file
     mimetypes.add_type('application/x-softbook', '.imp')
-    Plugin.load_from(os.path.join(ImpProxyHandler.root_dir, 'plugins'))
+    Plugin.load_from(os.path.join(config.root_dir, 'plugins'))
 
+    if not dirs:
+        dirs = [ os.path.join(config.root_dir, 'shelf') ]
     for dir in dirs:
         if os.path.isdir(dir):
-            ImpProxyHandler.shelf_dirs.append(os.path.abspath(dir))
+            config.shelf_dirs.append(os.path.abspath(dir))
 
     httpd = BaseHTTPServer.HTTPServer((host,port), ImpProxyHandler)
 
