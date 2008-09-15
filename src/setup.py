@@ -33,6 +33,7 @@ setup(
     license = 'zlib/libpng',
     url = 'http://ebookutils.berlios.de/',
     download_url = 'http://ebookutils.berlios.de/',
+    scripts = ['impbuild.exe'],
     classifiers = [
         'Development Status :: 4 - Beta',
         'Environment :: Console',
