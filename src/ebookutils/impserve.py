@@ -232,6 +232,8 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         except:
             self.send_error(504, "Gateway Timeout")
             return
+        if code == 301:
+            code = 302   # the ebook doesn't understand 301
         self.send_response(code, msg)
         if 'Content-Disposition' in info:
             m = CONTENT_FILE.search(info['Content-Disposition'])
