@@ -242,6 +242,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 info['Content-Type'] = self.guess_type(m.group(1))
         for plugin in ProxyResponse.plugins:
             info, data = plugin().get_response(url, info, data)
+        # force Content-Length to the actual data available
+        if data:
+            info['Content-Length'] = str(len(data))
         for name in info:
             self.send_header(name, info.getheader(name))
             if self.config.debug:
