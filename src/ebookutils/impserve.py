@@ -6,7 +6,8 @@
 ##  This software is licensed under the terms mentioned in the file LICENSE.
 ##
 
-import os, sys, re, imp, urlparse, urllib, shutil, mimetypes, cgi, BaseHTTPServer
+import os, sys, re, imp, urlparse, urllib, shutil, random
+import mimetypes, cgi, BaseHTTPServer
 
 from ebookutils import __version__
 
@@ -243,8 +244,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             info, data = plugin().get_response(url, info, data)
         for name in info:
             self.send_header(name, info.getheader(name))
+            if self.config.debug:
+                print 'HEADER [%s] %s' % (name, info.getheader(name))
         self.end_headers()
         self.wfile.write(data)
+        if self.config.debug:
+            fname = random.randint(1,9999)
+            print 'DATAFILE [%s.txt]\n' % (fname)
+            open('%d.txt' %fname, 'w').write(data)
         if code == 200 and 'text/html' in info['Content-Type']:
             self.config.url_cache.append(url)
             while len(self.config.url_cache) > URL_CACHE_MAX:
@@ -366,8 +373,9 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 ######################################################################## main
 
-def run(host, port, dirs=[]):
+def run(host, port, debug, dirs=[]):
     global config
+    config.debug = debug
     mime_file = os.path.join(config.root_dir, 'mime.types')
     if not mimetypes.inited and os.path.isfile(mime_file):
         mimetypes.init(mime_file)
@@ -384,8 +392,8 @@ def run(host, port, dirs=[]):
     httpd = BaseHTTPServer.HTTPServer((host,port), ImpProxyHandler)
 
     sname = httpd.socket.getsockname()
-    print "impserve %s: starting server on %s:%s" % \
-            (__version__, sname[0], sname[1])
+    print "impserve %s: starting server on %s:%s%s" % \
+            (__version__, sname[0], sname[1], debug)
 
     httpd.serve_forever()
 
@@ -400,9 +408,9 @@ Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
 
 def main():
     import getopt
-    host, port = '', 9090
+    host, port, debug = '', 9090, ''
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hva:p:")
+        opts, args = getopt.getopt(sys.argv[1:], "hdva:p:")
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -416,11 +424,13 @@ def main():
             sys.exit(0)
         elif o == '-a':
             host = a
+        elif o == '-d':
+            debug = ' in debug mode.'
         elif o == '-p':
             port = int(a)
         else:
             print 'Unhandled option'
             sys.exit(3)
 
-    run(host, port, args)
+    run(host, port, debug, args)
     sys.exit(0)
