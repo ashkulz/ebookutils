@@ -405,6 +405,7 @@ def usage():
 Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
 -h          show this help message.
 -v          show the version.
+-d          run the server in debug mode
 -a ADDRESS  listen on the specified IP address (default: 0.0.0.0)
 -p PORT     listen on the specified port       (default: 9090)
 """
