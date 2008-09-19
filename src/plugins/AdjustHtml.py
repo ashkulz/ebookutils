@@ -16,5 +16,9 @@ class AdjustHtml(impserve.ProxyResponse):
         for a in soup.findAll('a', href=None):
             a.extract()
 
+        # remove all <script> tags
+        for a in soup.findAll('script'):
+            a.extract()
+
         return headers, soup.renderContents()
 
