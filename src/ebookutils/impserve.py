@@ -371,14 +371,17 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         for dir in self.config.shelf_dirs:
             self.config.book_cache = get_ebook_list(dir, self.config.book_cache)
 
-    def address_string(self):
-        return self.client_address[0]
+    def log_message(self, format, *args):
+        self.config.log.write("%s - - [%s] %s\n" %
+                         (self.client_address[0], self.log_date_time_string(),
+                          format % args))
+        self.config.log.flush()
 
 ######################################################################## main
 
-def run(host, port, debug, dirs=[]):
+def run(host, port, log, debug, dirs=[]):
     global config
-    config.debug = debug
+    config.log, config.debug = log, debug
     mime_file = os.path.join(config.root_dir, 'mime.types')
     if not mimetypes.inited and os.path.isfile(mime_file):
         mimetypes.init(mime_file)
@@ -406,15 +409,16 @@ Usage: impserve [-OPTIONS] SHELF-DIRECTORIES
 -h          show this help message.
 -v          show the version.
 -d          run the server in debug mode
+-l LOGFILE  log all output to the specified logfile
 -a ADDRESS  listen on the specified IP address (default: 0.0.0.0)
 -p PORT     listen on the specified port       (default: 9090)
 """
 
 def main():
     import getopt
-    host, port, debug = '', 9090, ''
+    host, port, debug, log = '', 9090, '', sys.stderr
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hdva:p:")
+        opts, args = getopt.getopt(sys.argv[1:], "hdva:p:l:")
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -430,11 +434,13 @@ def main():
             host = a
         elif o == '-d':
             debug = ' in debug mode.'
+        elif o == '-l':
+            log = open(a, 'w')
         elif o == '-p':
             port = int(a)
         else:
             print 'Unhandled option'
             sys.exit(3)
 
-    run(host, port, debug, args)
+    run(host, port, log, debug, args)
     sys.exit(0)
