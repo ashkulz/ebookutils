@@ -7,3 +7,4 @@ dist
 src/build
 src/dist
 src/ebookutils.egg-info
+!win32/*.exe

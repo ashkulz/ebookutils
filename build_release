@@ -26,7 +26,10 @@ def build_release():
     if os.path.exists('build'): shutil.rmtree('build')
     if os.path.exists('dist'):  shutil.rmtree('dist')
     shell('cp ../impbuild/impbuild.exe impbuild.exe')
-    shell('python setup.py register bdist_egg upload')
+    if '-upload' in sys.argv:
+        shell('python setup.py register bdist_egg upload')
+    else:
+        shell('python setup.py bdist_egg')
     shell('mv dist/*.egg ../dist/ ; rm -fR build dist')
     shell('wine python setup.py py2exe -b 2 -c')
     shell('cp ~/.wine/drive_c/windows/system32/python25.dll dist/python25.dll')
@@ -39,6 +42,7 @@ def build_release():
     shell('git ls-files content | xargs -I% cp % dist/content')
     shell('git ls-files shelf   | xargs -I% cp % dist/shelf')
     shutil.rmtree('build')
+    shell('cp ../win32/* dist/')
     shutil.move('dist', EVERSION)
     shell('zip -9 -r ../dist/%s-win32.zip %s' % (EVERSION, EVERSION))
     shutil.rmtree(EVERSION)
@@ -124,5 +128,6 @@ def create_berlios_release(group_id, package_id):
 
 if __name__ == '__main__':
     build_release()
-    upload_to_ftp()
+    if '-upload' in sys.argv:
+        upload_to_ftp()
     #~ create_berlios_release(10046, 4839)
