@@ -196,11 +196,14 @@ class ImpProxyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_error(400, 'bad url %s' % self.path)
             return
 
-        if host.lower().endswith(LOCAL_DOMAIN):
-            self.handle_local_request(host, path, qry)
-            return
+        try:
+            if host.lower().endswith(LOCAL_DOMAIN):
+                self.handle_local_request(host, path, qry)
+                return
 
-        self.handle_proxy_request()
+            self.handle_proxy_request()
+        except Exception, e:
+            self.log_message('Error encountered while processing the request:\%s', str(e))
 
     do_POST = do_GET
 
