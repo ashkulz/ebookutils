@@ -7,12 +7,13 @@ echo ERROR: an option other than I or U was chosen.
 pause
 exit /b 1
 :install
-instsrv impserve %~dp0srvany.exe
-reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve /v Description /d "Local content server and Internet proxy for the 1150/1200 ebooks"
-reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters
-reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v Application /d %~dp0impserve.exe
-reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v AppParameters /d "-l %~dp0\impserve.log
-reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v AppDirectory /d %~dp0
+instsrv impserve "%~dp0srvany.exe"
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve /v Description /d "Local content server and Internet proxy for the 1150/1200 ebooks" /f
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve /v ImagePath /d "\"%~dp0srvany.exe\"" /f
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /f
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v Application /d "\"%~dp0impserve.exe\"" /f
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v AppParameters /d "-l \"%~dp0\impserve.log\"" /f
+reg add HKLM\SYSTEM\CurrentControlSet\Services\impserve\Parameters /v AppDirectory /d "\"%~dp0\"" /f
 net start impserve
 pause
 exit /b 0
