@@ -71,7 +71,9 @@ def get_ebook_list(path, existing={}):
         if not os.path.isfile(file):
             continue
         if os.path.getmtime(file) != info.mtime:
-            current[file] = get_ebook_info(file)
+            new_info = get_ebook_info(file)
+            if new_info is not None:
+                current[file] = new_info
         else:
             current[file] = info
 
@@ -80,7 +82,9 @@ def get_ebook_list(path, existing={}):
             if name.lower().endswith('.imp'):
                 fname = os.path.join(root, name)
                 if fname not in existing:
-                    current[fname] = get_ebook_info(fname)
+                    info = get_ebook_info(fname)
+                    if info is not None:
+                        current[fname] = get_ebook_info(fname)
     return current
 
 ################################################################ misc helpers
